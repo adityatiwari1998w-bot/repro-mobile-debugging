@@ -91,6 +91,23 @@ javascript:(function(){var s=document.createElement('script');s.src='https://cdn
 
 **Usage:** open the target site, tap the bookmarklet, then reproduce the bug — logs/requests from *before* the tap aren't captured. Won't work on sites whose CSP blocks external scripts, or on browser-internal pages. If pasting strips the `javascript:` prefix, retype it manually.
 
+### Persistent across reloads — userscript
+
+A bookmarklet dies on page reload (nothing re-runs it). For persistence, install `mobile-devtool.user.js` in a userscript manager — it injects the devtool on **every page load** until you toggle it off:
+
+- **Android:** Chrome doesn't support extensions — use a browser that does, e.g. Kiwi or Firefox, and install **Tampermonkey**, then open the raw `mobile-devtool.user.js` URL to install.
+- **iOS:** install the **Userscripts** app from the App Store, enable it in Safari extensions, and add the file.
+- Edit the `@match` rule to limit it to the domains you're debugging (recommended — by default it runs everywhere except google.com).
+
+For your own app, the `?debug=1` + sessionStorage snippet in "Usage in real apps" achieves the same thing without any extension.
+
+### Removing / detaching
+
+- **✕** in the panel header minimizes to the floating button.
+- **⏻** in the panel header fully removes the devtool and restores all patched APIs (`console`, `fetch`, XHR, WebSocket) — same as running `mobileDevtool.destroy()`.
+- A page reload also clears a bookmarklet injection.
+- One-tap removal bookmarklet: `javascript:window.mobileDevtool&&mobileDevtool.destroy()`
+
 ### Native app WebViews
 
 Inject at document start so early logs/requests are captured:

@@ -665,7 +665,16 @@
       savePrefs();
     });
     hdr.appendChild(themeBtn);
+    var offBtn = el('div', 'hbtn', '⏻');
+    offBtn.title = 'Remove devtool from this page';
+    offBtn.addEventListener('click', function () {
+      if (confirm('Remove the devtool from this page?\n(Console/network patches are restored. Re-run the bookmarklet or reload to bring it back.)')) {
+        window.mobileDevtool.destroy();
+      }
+    });
+    hdr.appendChild(offBtn);
     var closeBtn = el('div', 'hbtn', '✕');
+    closeBtn.title = 'Minimize (floating button stays)';
     closeBtn.addEventListener('click', hide);
     hdr.appendChild(closeBtn);
     panel.appendChild(hdr);
