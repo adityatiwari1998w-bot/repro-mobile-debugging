@@ -15,7 +15,7 @@ Built for debugging web apps on real phones where desktop DevTools can't reach: 
 - **Screenshot + annotate** — 📷 captures the page (best-effort SVG render), lets you draw on it with a finger, then save as PNG or share to Slack/WhatsApp.
 - **UI** — draggable floating button with error badge (position remembered), drag the panel header to resize, light/dark theme toggle.
 - **Safe by construction** — all captured content is rendered with `textContent` (no XSS from logged strings, URLs, or response bodies). Nothing is ever sent off the device.
-- **Mobile-friendly memory budget** — everything is hard-capped: 500 logs / 200 requests in memory, 50 frames per socket, bodies at 20 KB; persisted state is ≤ ~15 KB of sessionStorage (cleared when the tab closes) plus a <100-byte prefs blob. Observers and the FPS loop only run while visible.
+- **Mobile-friendly memory budget** — hard caps everywhere: 500 logs / 200 requests in memory, 50 frames per socket, 1 MB per-body safety ceiling; persisted state is ≤ ~15 KB of sessionStorage (cleared when the tab closes) plus a <100-byte prefs blob. Observers and the FPS loop only run while visible.
 
 ## Install
 
@@ -169,7 +169,7 @@ The source is a single IIFE in `mobile-devtool.js` — console/network intercept
 
 ## Limits
 
-- Keeps the last **500 logs** and **200 requests**; request/response bodies truncated at **20 KB**; WebSocket frames capped at 50 per socket / 500 chars each; object serialization capped at depth 6 and 100 items/keys per level (shown as `… N more`).
+- Keeps the last **500 logs** and **200 requests**; request/response bodies stored **in full** (1 MB per-body safety ceiling); WebSocket frames capped at 50 per socket / 500 chars each; object serialization capped at depth 6 and 100 items/keys per level (shown as `… N more`).
 - Response bodies are read only for text-like content types (JSON, text, XML, HTML, urlencoded); binary shows as `[content-type]`.
 - Not captured: `navigator.sendBeacon`, service-worker internal fetches, requests made before the script loads.
 - Screenshots are a best-effort SVG render of the DOM — cross-origin images and some complex CSS won't appear.

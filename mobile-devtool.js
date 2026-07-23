@@ -13,7 +13,7 @@
 
   var MAX_LOGS = 500;
   var MAX_NET = 200;
-  var MAX_BODY = 20000;     // chars of req/resp body kept
+  var MAX_BODY = 1048576;   // req/resp bodies kept in full up to 1 MB (safety ceiling only)
   var MAX_WS_FRAMES = 50;   // frames kept per websocket
   var MAX_WS_FRAME = 500;   // chars per frame
   var MAX_PERSIST = 40;     // logs persisted across reloads (≈ <15 KB sessionStorage)
