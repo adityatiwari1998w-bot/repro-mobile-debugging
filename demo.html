@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>mobile-devtool demo</title>
+  <!-- Load the devtool FIRST so it captures everything -->
+  <script src="mobile-devtool.js"></script>
+  <style>
+    body { font-family: -apple-system, sans-serif; margin: 0; padding: 20px; background: #f5f5f7; }
+    h1 { font-size: 20px; }
+    button { display: block; width: 100%; margin: 8px 0; padding: 12px; border: 0; border-radius: 8px;
+             background: #0071e3; color: #fff; font-size: 15px; }
+    .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  </style>
+</head>
+<body>
+  <h1>mobile-devtool demo</h1>
+  <p>Tap the floating button (bottom-right) to open DevTools. Then try these:</p>
+
+  <div class="card">
+    <button onclick="console.log('Hello', {user:'Aarav', roles:['admin','dev'], nested:{a:1,b:[2,3]}})">console.log with object</button>
+    <button onclick="console.warn('Low battery warning')">console.warn</button>
+    <button onclick="console.error('Something failed:', new Error('demo error'))">console.error</button>
+    <button onclick="undefinedFunction()">Throw uncaught error</button>
+    <button onclick="Promise.reject('demo rejection')">Unhandled rejection</button>
+    <button onclick="for(let i=0;i<5;i++)console.log('repeated line')">Repeated logs (collapse)</button>
+  </div>
+
+  <div class="card">
+    <button onclick="fetch('https://jsonplaceholder.typicode.com/todos/1').then(r=>r.json()).then(d=>console.log('fetched:',d))">fetch (GET, JSON)</button>
+    <button onclick="fetch('https://jsonplaceholder.typicode.com/posts',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:'hi',body:'test'})})">fetch (POST)</button>
+    <button onclick="fetch('https://jsonplaceholder.typicode.com/nope-404')">fetch (404)</button>
+    <button onclick="var x=new XMLHttpRequest();x.open('GET','https://jsonplaceholder.typicode.com/users/1');x.send()">XMLHttpRequest</button>
+  </div>
+
+  <div class="card">
+    <button onclick="localStorage.setItem('demo_key_'+Date.now(), JSON.stringify({saved:true}))">Add localStorage item</button>
+    <button onclick="sessionStorage.setItem('session_demo','value-'+Math.random().toFixed(3))">Add sessionStorage item</button>
+    <button onclick="document.cookie='demo_cookie=tasty; path=/'">Set cookie</button>
+  </div>
+</body>
+</html>

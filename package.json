@@ -1,0 +1,29 @@
+{
+  "name": "repro-mobile-devtools",
+  "version": "1.0.0",
+  "description": "Eruda-like on-page DevTools for mobile browsers. Console, network, elements, storage and device info panels in a single dependency-free script.",
+  "main": "mobile-devtool.js",
+  "unpkg": "mobile-devtool.min.js",
+  "jsdelivr": "mobile-devtool.min.js",
+  "files": [
+    "mobile-devtool.js",
+    "mobile-devtool.min.js"
+  ],
+  "scripts": {
+    "build": "terser mobile-devtool.js -c -m --comments '/^!/' -o mobile-devtool.min.js",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "devtools",
+    "mobile",
+    "debug",
+    "console",
+    "eruda",
+    "inspector"
+  ],
+  "author": "Aarav Sharma <aarav.sharma@darphastudios.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "terser": "^5.0.0"
+  }
+}
