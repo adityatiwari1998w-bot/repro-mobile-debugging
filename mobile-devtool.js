@@ -11,12 +11,12 @@
   if (window.__MOBILE_DEVTOOL__) return;
   window.__MOBILE_DEVTOOL__ = true;
 
-  var MAX_LOGS = 500;
-  var MAX_NET = 200;
-  var MAX_BODY = 1048576;   // req/resp bodies kept in full up to 1 MB (safety ceiling only)
-  var MAX_WS_FRAMES = 50;   // frames kept per websocket
-  var MAX_WS_FRAME = 500;   // chars per frame
-  var MAX_PERSIST = 40;     // logs persisted across reloads (≈ <15 KB sessionStorage)
+  var MAX_LOGS = 2000;
+  var MAX_NET = 500;
+  var MAX_BODY = 5242880;   // req/resp bodies kept in full up to 5 MB (safety ceiling only)
+  var MAX_WS_FRAMES = 200;  // frames kept per websocket
+  var MAX_WS_FRAME = 2000;  // chars per frame
+  var MAX_PERSIST = 100;    // logs persisted across reloads (≈ <50 KB sessionStorage)
   var PERSIST_KEY = '__mdt_logs';
   var UI_KEY = '__mdt_ui';  // tiny prefs blob (<100 bytes)
 
@@ -55,7 +55,7 @@
       if (depth > maxDepth) return (Array.isArray(v) ? '[Array]' : '[Object]');
       seen.push(v);
       var out;
-      var MAX_ITEMS = 100; // breadth cap so huge structures can't freeze the page
+      var MAX_ITEMS = 500; // breadth cap so huge structures can't freeze the page
       if (Array.isArray(v)) {
         out = v.slice(0, MAX_ITEMS).map(function (x) { return walk(x, depth + 1); });
         if (v.length > MAX_ITEMS) out.push('… ' + (v.length - MAX_ITEMS) + ' more items');
@@ -100,7 +100,7 @@
       return { text: s + '>', type: 'obj', full: (v.outerHTML || '').slice(0, MAX_BODY) };
     }
     // object / array — one-line preview, expandable full JSON
-    var full = safeStringify(v, 6);
+    var full = safeStringify(v, 8);
     var line;
     try {
       if (Array.isArray(v)) {
@@ -212,12 +212,12 @@
 
   function textTable(data, cols) {
     var rows = Array.isArray(data) ? data : Object.keys(data || {}).map(function (k) { return data[k]; });
-    rows = rows.slice(0, 50); // memory cap
+    rows = rows.slice(0, 200); // memory cap
     var keys = cols;
     if (!keys) {
       keys = [];
       rows.forEach(function (r) {
-        if (r && typeof r === 'object') Object.keys(r).forEach(function (k) { if (keys.indexOf(k) === -1 && keys.length < 8) keys.push(k); });
+        if (r && typeof r === 'object') Object.keys(r).forEach(function (k) { if (keys.indexOf(k) === -1 && keys.length < 12) keys.push(k); });
       });
     }
     if (!keys.length) keys = ['value'];
@@ -246,7 +246,7 @@
       persistTimer = null;
       try {
         var out = state.logs.slice(-MAX_PERSIST).map(function (e) {
-          return [e.level, e.parts.map(function (p) { return p.text; }).join(' ').slice(0, 300), e.time];
+          return [e.level, e.parts.map(function (p) { return p.text; }).join(' ').slice(0, 500), e.time];
         });
         sessionStorage.setItem(PERSIST_KEY, JSON.stringify(out));
       } catch (e) { /* storage full/blocked — skip silently */ }
