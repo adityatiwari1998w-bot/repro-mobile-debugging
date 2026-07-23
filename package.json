@@ -20,7 +20,7 @@
     "console",
     "inspector"
   ],
-  "author": "Aarav Sharma <aarav.sharma@darphastudios.com>",
+  "author": "Aditya Kumar Tiwari <aarav.sharma@darphastudios.com>",
   "license": "MIT",
   "devDependencies": {
     "terser": "^5.0.0"
