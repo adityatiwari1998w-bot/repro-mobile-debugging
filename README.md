@@ -23,9 +23,9 @@ npm install repro-mobile-devtools
 Or via CDN:
 
 ```html
+<script src="https://cdn.jsdelivr.net/gh/adityatiwari1998w-bot/repro-mobile-debugging@main/mobile-devtool.min.js"></script>
+<!-- or, once published to npm -->
 <script src="https://unpkg.com/repro-mobile-devtools"></script>
-<!-- or -->
-<script src="https://cdn.jsdelivr.net/npm/repro-mobile-devtools"></script>
 ```
 
 Or just copy `mobile-devtool.js` (readable) / `mobile-devtool.min.js` (26 KB) into your project.
@@ -35,7 +35,7 @@ Or just copy `mobile-devtool.js` (readable) / `mobile-devtool.min.js` (26 KB) in
 Add as the **first** script in `<head>` so interception starts before your app code runs — anything logged or fetched before the script loads is not captured:
 
 ```html
-<script src="https://unpkg.com/repro-mobile-devtools"></script>
+<script src="https://cdn.jsdelivr.net/gh/adityatiwari1998w-bot/repro-mobile-debugging@main/mobile-devtool.min.js"></script>
 ```
 
 A floating `>_` button appears bottom-right. Tap it to open the panel; drag it to reposition.
@@ -50,7 +50,7 @@ Plain HTML:
 <script>
   // enable with ?debug=1 once, then it sticks for the session
   if (location.search.includes('debug=1')) sessionStorage.__dbg = 1;
-  if (sessionStorage.__dbg) document.write('<script src="https://unpkg.com/repro-mobile-devtools"><\/script>');
+  if (sessionStorage.__dbg) document.write('<script src="https://cdn.jsdelivr.net/gh/adityatiwari1998w-bot/repro-mobile-debugging@main/mobile-devtool.min.js"><\/script>');
 </script>
 ```
 
@@ -67,7 +67,7 @@ if (import.meta.env.DEV || location.search.includes('debug=1')) {
 Save this as a bookmark on your phone, tap it on any page:
 
 ```
-javascript:(function(){var s=document.createElement('script');s.src='https://unpkg.com/repro-mobile-devtools';document.body.appendChild(s)})()
+javascript:(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/adityatiwari1998w-bot/repro-mobile-debugging@main/mobile-devtool.min.js';document.body.appendChild(s)})()
 ```
 
 ### Native app WebViews
