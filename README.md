@@ -12,7 +12,6 @@ Built for debugging web apps on real phones where desktop DevTools can't reach: 
 - **Storage** — view localStorage, sessionStorage, and cookies. **Tap a value to edit it**, delete individual keys, or clear a store entirely.
 - **Perf** — live **FPS meter** (runs only while the tab is visible), page-load waterfall (DNS/TCP/TTFB/download/DOMContentLoaded/load), first contentful paint, resource count and transfer size, JS heap (Chrome), and **long-task detection**.
 - **Info** — user agent, viewport, screen size, device pixel ratio, connection type, touch points, language, online status, and more.
-- **Screenshot + annotate** — 📷 captures the page (best-effort SVG render), lets you draw on it with a finger, then save as PNG or share to Slack/WhatsApp.
 - **UI** — draggable floating button with error badge (position remembered), drag the panel header to resize, light/dark theme toggle.
 - **Safe by construction** — all captured content is rendered with `textContent` (no XSS from logged strings, URLs, or response bodies). Nothing is ever sent off the device.
 - **Mobile-friendly memory budget** — hard caps everywhere: 2000 logs / 500 requests in memory, 200 frames per socket, 5 MB per-body safety ceiling; persisted state is ≤ ~50 KB of sessionStorage (cleared when the tab closes) plus a <100-byte prefs blob. Observers and the FPS loop only run while visible.
@@ -126,7 +125,6 @@ mobileDevtool.exportHAR();// downloads captured requests as a .har file
 mobileDevtool.getLogs();  // returns console logs as an array of objects
 mobileDevtool.exportLogs('txt' | 'json'); // downloads console logs
 mobileDevtool.shareLogs();// system share sheet (falls back to download)
-mobileDevtool.snapshot(); // screenshot + annotation overlay
 ```
 
 Re-injecting the script after `destroy()` is safe — patches are fully unwound, so nothing double-wraps.
@@ -172,7 +170,6 @@ The source is a single IIFE in `mobile-devtool.js` — console/network intercept
 - Keeps the last **2000 logs** and **500 requests**; request/response bodies stored **in full** (5 MB per-body safety ceiling); WebSocket frames capped at 200 per socket / 2000 chars each; object serialization capped at depth 8 and 500 items/keys per level (shown as `… N more`).
 - Response bodies are read only for text-like content types (JSON, text, XML, HTML, urlencoded); binary shows as `[content-type]`.
 - Not captured: `navigator.sendBeacon`, service-worker internal fetches, requests made before the script loads.
-- Screenshots use a fast SVG render where supported; on iOS/Safari (which can't rasterize it) the tool lazy-loads **html2canvas** from jsDelivr on first 📷 tap — needs network access and a CSP that allows cdn.jsdelivr.net. Cross-origin images may still be missing.
 - The throttle/block rule applies one URL-substring pattern at a time; XHR blocking fires synthetic `error`/`loadend` events (readyState doesn't reach 4).
 - Requires pointer-events support (iOS 13+, all modern Android). The floating button won't respond on very old browsers.
 - The eval input can be covered by the on-screen keyboard on some iOS versions — scroll the panel if needed.

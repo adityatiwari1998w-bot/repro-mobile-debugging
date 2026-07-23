@@ -592,11 +592,6 @@
     'select.btn{-webkit-appearance:none;appearance:none}',
     '.search{background:#101014;border:1px solid #33333d;border-radius:6px;color:#e8e8ea;padding:4px 8px;font-size:12px;outline:none;width:110px;font-family:inherit}',
     '.srow .v.editable{text-decoration:underline dotted #7a7a85;cursor:pointer}',
-    /* screenshot annotation overlay */
-    '.annot{position:fixed;inset:0;z-index:2147483647;background:#000;display:none;flex-direction:column}',
-    '.annot.on{display:flex}',
-    '.annot canvas{flex:1;touch-action:none;object-fit:contain;min-height:0}',
-    '.annot .abar{display:flex;gap:8px;padding:10px;background:#151519;justify-content:center;flex:none}',
     /* light theme */
     '.root.light .panel{background:#f6f6f8;border-top-color:#d5d5dd}',
     '.root.light .hdr,.root.light .fab{background:#ffffff;border-color:#d5d5dd}',
@@ -653,10 +648,6 @@
       tabs.appendChild(te);
     });
     hdr.appendChild(tabs);
-    var snapBtn = el('div', 'hbtn', '📷');
-    snapBtn.title = 'Screenshot + annotate';
-    snapBtn.addEventListener('click', snapshot);
-    hdr.appendChild(snapBtn);
     var themeBtn = el('div', 'hbtn', '◐');
     themeBtn.title = 'Toggle light/dark';
     themeBtn.addEventListener('click', function () {
@@ -711,64 +702,6 @@
     var hlabel = el('div', 'hlabel');
     hilite.appendChild(hlabel);
     root.appendChild(hilite);
-
-    /* screenshot annotation overlay */
-    var annot = el('div', 'annot');
-    var aCanvas = document.createElement('canvas');
-    annot.appendChild(aCanvas);
-    var aBar = el('div', 'abar');
-    var aSave = el('button', 'btn', '⬇ Save PNG');
-    var aShare = el('button', 'btn', '⤴ Share');
-    var aClear = el('button', 'btn', 'Clear drawing');
-    var aClose = el('button', 'btn', '✕ Close');
-    [aSave, aShare, aClear, aClose].forEach(function (b) { aBar.appendChild(b); });
-    annot.appendChild(aBar);
-    root.appendChild(annot);
-    aClose.addEventListener('click', function () { annot.classList.remove('on'); annotBase = null; });
-    aClear.addEventListener('click', function () { if (annotBase) aCanvas.getContext('2d').drawImage(annotBase, 0, 0); });
-    aSave.addEventListener('click', function () {
-      aCanvas.toBlob(function (b) { if (b) downloadBlob(b, 'snapshot-' + stamp() + '.png'); }, 'image/png');
-    });
-    aShare.addEventListener('click', function () {
-      aCanvas.toBlob(function (b) {
-        if (!b) return;
-        var file;
-        try { file = new File([b], 'snapshot.png', { type: 'image/png' }); } catch (e) {}
-        if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
-          navigator.share({ files: [file], title: 'Snapshot — ' + location.host }).catch(function () {});
-        } else {
-          downloadBlob(b, 'snapshot-' + stamp() + '.png');
-        }
-      }, 'image/png');
-    });
-    /* finger drawing */
-    (function () {
-      var drawing = false, ctx2 = null;
-      function pos(e) {
-        var r = aCanvas.getBoundingClientRect();
-        var scaleX = aCanvas.width / r.width, scaleY = aCanvas.height / r.height;
-        return [(e.clientX - r.left) * scaleX, (e.clientY - r.top) * scaleY];
-      }
-      aCanvas.addEventListener('pointerdown', function (e) {
-        drawing = true;
-        ctx2 = aCanvas.getContext('2d');
-        ctx2.strokeStyle = '#f43f5e';
-        ctx2.lineWidth = Math.max(3, aCanvas.width / 250);
-        ctx2.lineCap = 'round';
-        var p = pos(e);
-        ctx2.beginPath();
-        ctx2.moveTo(p[0], p[1]);
-        aCanvas.setPointerCapture(e.pointerId);
-      });
-      aCanvas.addEventListener('pointermove', function (e) {
-        if (!drawing) return;
-        var p = pos(e);
-        ctx2.lineTo(p[0], p[1]);
-        ctx2.stroke();
-      });
-      aCanvas.addEventListener('pointerup', function () { drawing = false; });
-      aCanvas.addEventListener('pointercancel', function () { drawing = false; });
-    })();
 
     /* ---- console pane ---- */
     var cPane = el('div', 'pane');
@@ -927,7 +860,6 @@
       eScroll: eScroll, eDetail: eDetail, pickBtn: pickBtn,
       sScroll: sScroll, iScroll: iScroll,
       hilite: hilite, hlabel: hlabel,
-      annot: annot, aCanvas: aCanvas,
       selected: null, picking: false
     };
     state.ui = ui;
@@ -998,120 +930,6 @@
         fx: state.fabX, fy: state.fabY
       }));
     } catch (e) {}
-  }
-
-  /* ---- screenshot + annotate ---- */
-
-  var annotBase = null; // Image holding the clean screenshot (for "Clear drawing")
-
-  /* WebKit (all iOS browsers + desktop Safari) can't rasterize foreignObject SVG
-     onto canvas — for those we lazy-load html2canvas from CDN instead. */
-  var needsH2C = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) || // iPadOS pretends to be a Mac
-    (/AppleWebKit/.test(navigator.userAgent) && !/Chrome|CriOS|Android/.test(navigator.userAgent));
-
-  var H2C_URL = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
-  function loadH2C(ok, fail) {
-    if (window.html2canvas) return ok();
-    var s = document.createElement('script');
-    s.src = H2C_URL;
-    s.onload = function () {
-      if (window.html2canvas) ok();
-      else fail(new Error('html2canvas loaded but unavailable'));
-    };
-    s.onerror = function () { fail(new Error('could not load html2canvas from CDN (offline, or CSP blocks cdn.jsdelivr.net)')); };
-    document.head.appendChild(s);
-  }
-
-  function openAnnotator(fromCanvas) {
-    var c = ui.aCanvas;
-    c.width = fromCanvas.width;
-    c.height = fromCanvas.height;
-    c.getContext('2d').drawImage(fromCanvas, 0, 0);
-    annotBase = new Image();
-    annotBase.src = c.toDataURL('image/png');
-    ui.annot.classList.add('on');
-  }
-
-  function snapshotH2C(w, h, dpr) {
-    loadH2C(function () {
-      window.html2canvas(document.body, {
-        width: w,
-        height: h,
-        x: window.scrollX || window.pageXOffset || 0,
-        y: window.scrollY || window.pageYOffset || 0,
-        scale: dpr,
-        useCORS: true,
-        logging: false,
-        ignoreElements: function (n) { return n && n.id === '__mobile_devtool__'; }
-      }).then(function (canvas) {
-        openAnnotator(canvas);
-      }).catch(function (e) {
-        pushLog('error', ['Snapshot failed (html2canvas):', e]);
-        show();
-      });
-    }, function (err) {
-      pushLog('error', ['Snapshot failed:', err]);
-      show();
-    });
-  }
-
-  function snapshot() {
-    hide();
-    setTimeout(function () {
-      try {
-        var w = window.innerWidth, h = window.innerHeight;
-        var dpr = Math.min(window.devicePixelRatio || 1, 2); // cap for memory
-        if (needsH2C) { snapshotH2C(w, h, dpr); return; }
-        // collect same-origin CSS
-        var css = '';
-        try {
-          Array.prototype.forEach.call(document.styleSheets, function (ss) {
-            try { Array.prototype.forEach.call(ss.cssRules, function (r) { css += r.cssText + '\n'; }); }
-            catch (e) { /* cross-origin sheet — skipped */ }
-          });
-        } catch (e) {}
-        var clone = document.documentElement.cloneNode(true);
-        var own = clone.querySelector('#__mobile_devtool__');
-        if (own) own.parentNode.removeChild(own);
-        Array.prototype.slice.call(clone.querySelectorAll('script,noscript,iframe')).forEach(function (n) {
-          n.parentNode.removeChild(n);
-        });
-        var styleEl = clone.querySelector('head') || clone;
-        var st = document.createElement('style');
-        st.textContent = css;
-        styleEl.appendChild(st);
-        var html = new XMLSerializer().serializeToString(clone);
-        var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="' + w + '" height="' + h + '">' +
-          '<foreignObject width="100%" height="100%">' + html + '</foreignObject></svg>';
-        var blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-        var url = URL.createObjectURL(blob);
-        var img = new Image();
-        img.onload = function () {
-          try {
-            var c = document.createElement('canvas');
-            c.width = Math.round(w * dpr);
-            c.height = Math.round(h * dpr);
-            var ctx2 = c.getContext('2d');
-            ctx2.fillStyle = '#ffffff';
-            ctx2.fillRect(0, 0, c.width, c.height);
-            ctx2.drawImage(img, 0, 0, c.width, c.height);
-            openAnnotator(c); // toDataURL inside throws here if canvas got tainted
-          } catch (e) {
-            snapshotH2C(w, h, dpr); // fall back to html2canvas
-          }
-          URL.revokeObjectURL(url);
-        };
-        img.onerror = function () {
-          URL.revokeObjectURL(url);
-          snapshotH2C(w, h, dpr); // SVG render failed — fall back to html2canvas
-        };
-        img.src = url;
-      } catch (e) {
-        pushLog('error', ['Snapshot failed:', e]);
-        show();
-      }
-    }, 120); // allow panel to visually close first
   }
 
   /* ---- open/close/tabs ---- */
@@ -1842,7 +1660,6 @@
     getLogs: logsJSON,      // returns logs as array of objects
     exportLogs: exportLogs, // ('txt'|'json') triggers download
     shareLogs: shareLogs,   // navigator.share (falls back to download)
-    snapshot: snapshot,     // screenshot + annotate overlay
     destroy: function () {
       if (ui && ui.host && ui.host.parentNode) ui.host.parentNode.removeChild(ui.host);
       ui = null;
