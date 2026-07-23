@@ -785,7 +785,7 @@
       renderNet();
     }, 200));
     nBar.appendChild(nSearch);
-    var nBundle = el('button', 'btn', '⬇ Bundle');
+    var nBundle = el('button', 'btn', '⬇ Repro bundle');
     nBundle.style.marginLeft = 'auto';
     nBundle.title = 'Export repro bundle zip (import into the repro extension via "Import a capture")';
     nBundle.addEventListener('click', exportBundle);

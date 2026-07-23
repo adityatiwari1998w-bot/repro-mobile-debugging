@@ -12,7 +12,7 @@ Built for debugging web apps on real phones where desktop DevTools can't reach: 
 - **Storage** — view localStorage, sessionStorage, and cookies. **Tap a value to edit it**, delete individual keys, or clear a store entirely.
 - **Perf** — live **FPS meter** (runs only while the tab is visible), page-load waterfall (DNS/TCP/TTFB/download/DOMContentLoaded/load), first contentful paint, resource count and transfer size, JS heap (Chrome), and **long-task detection**.
 - **Info** — user agent, viewport, screen size, device pixel ratio, connection type, touch points, language, online status, and more.
-- **Repro bundle export** — "⬇ Bundle" downloads a `repro-bundle-*.zip` (session + console/network/env events as `data.json`, plus `summary.md` and `network.har`) that imports directly into the **repro debug-extension** via "Import a capture".
+- **Repro bundle export** — "⬇ Repro bundle" downloads a `repro-bundle-*.zip` (session + console/network/env events as `data.json`, plus `summary.md` and `network.har`) that imports directly into the **repro debug-extension** via "Import a capture".
 - **UI** — draggable floating button with error badge (position remembered), drag the panel header to resize, light/dark theme toggle.
 - **Safe by construction** — all captured content is rendered with `textContent` (no XSS from logged strings, URLs, or response bodies). Nothing is ever sent off the device.
 - **Mobile-friendly memory budget** — hard caps everywhere: 2000 logs / 500 requests in memory, 200 frames per socket, 5 MB per-body safety ceiling; persisted state is ≤ ~50 KB of sessionStorage (cleared when the tab closes) plus a <100-byte prefs blob. Observers and the FPS loop only run while visible.
@@ -137,7 +137,7 @@ Re-injecting the script after `destroy()` is safe — patches are fully unwound,
 | Panel | How to use |
 |---|---|
 | Console | Chips filter by level. Tap orange object previews to expand full JSON. Repeated identical lines collapse with a counter. Type JS in the bottom input and hit Run — results (including awaited promises) print inline. |
-| Network | Row shows method, path, status (green = ok, red = failed, `…` = pending) and duration. Tap a row to expand general info, request/response headers and bodies. "⬇ HAR" downloads a `.har` file for Chrome DevTools or any HAR viewer. "⬇ Bundle" downloads a repro capture zip — in the repro extension choose **Import a capture** and pick the file to replay the session (console + network + device info). |
+| Network | Row shows method, path, status (green = ok, red = failed, `…` = pending) and duration. Tap a row to expand general info, request/response headers and bodies. "⬇ HAR" downloads a `.har` file for Chrome DevTools or any HAR viewer. "⬇ Repro bundle" downloads a repro capture zip — in the repro extension choose **Import a capture** and pick the file to replay the session (console + network + device info). |
 | Elements | Tap `▸` arrows to expand the tree. Tap a node label to see details below. Tap "⊕ Select element" to hide the panel and pick an element by tapping the page; tapping the floating button cancels picking. "↻ Refresh tree" re-reads the DOM. |
 | Storage | Each store lists key/value rows; tap a dotted-underlined value to edit it, `✕` deletes a key, "clear all" empties the store. Long values are truncated with a character count. |
 | Perf | FPS updates live while the tab is open. "Long tasks" counts main-thread blocks >50ms — the usual cause of jank. JS heap needs Chrome. |
