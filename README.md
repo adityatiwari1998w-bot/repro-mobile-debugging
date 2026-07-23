@@ -6,13 +6,16 @@ Built for debugging web apps on real phones where desktop DevTools can't reach: 
 
 ## Features
 
-- **Console** — captures `console.log/info/warn/error/debug`, uncaught errors, and unhandled promise rejections. Expandable object previews, duplicate-log collapsing with counters, level filters, and a JS eval input to run code on the page.
-- **Network** — intercepts `fetch` and `XMLHttpRequest`. Shows method, status, duration, request/response headers and bodies (JSON pretty-printed). Tap a row for full details. Export everything as a **HAR 1.2 file** for analysis in Chrome DevTools, Charles, or any HAR viewer.
+- **Console** — captures `console.log/info/warn/error/debug/time/group/table`, uncaught errors, and unhandled promise rejections. Expandable object previews, duplicate-log collapsing, level filters, **text search**, a JS eval input, **export as .txt/.json**, and **share via the system share sheet**. A small tail of logs (40 entries) **survives page reloads** so crash-on-load bugs stay visible.
+- **Network** — intercepts `fetch`, `XMLHttpRequest`, and **WebSocket** (frames shown per socket). Method, status, duration, headers, bodies (JSON pretty-printed), **URL search filter**, and a **throttle/block rule** — delay or fail requests matching a URL substring to test error handling. Export everything as a **HAR 1.2 file**.
 - **Elements** — DOM tree with expand/collapse, plus a tap-to-inspect mode: hide the panel, tap any element on the page, and see its attributes, bounding rect, and key computed styles with an on-screen highlight.
-- **Storage** — view localStorage, sessionStorage, and cookies. Delete individual keys or clear a store entirely.
+- **Storage** — view localStorage, sessionStorage, and cookies. **Tap a value to edit it**, delete individual keys, or clear a store entirely.
+- **Perf** — live **FPS meter** (runs only while the tab is visible), page-load waterfall (DNS/TCP/TTFB/download/DOMContentLoaded/load), first contentful paint, resource count and transfer size, JS heap (Chrome), and **long-task detection**.
 - **Info** — user agent, viewport, screen size, device pixel ratio, connection type, touch points, language, online status, and more.
-- **Floating button** — draggable, stays out of the way, shows a red badge counting warnings/errors that happened while the panel was closed.
+- **Screenshot + annotate** — 📷 captures the page (best-effort SVG render), lets you draw on it with a finger, then save as PNG or share to Slack/WhatsApp.
+- **UI** — draggable floating button with error badge (position remembered), drag the panel header to resize, light/dark theme toggle.
 - **Safe by construction** — all captured content is rendered with `textContent` (no XSS from logged strings, URLs, or response bodies). Nothing is ever sent off the device.
+- **Mobile-friendly memory budget** — everything is hard-capped: 500 logs / 200 requests in memory, 50 frames per socket, bodies at 20 KB; persisted state is ≤ ~15 KB of sessionStorage (cleared when the tab closes) plus a <100-byte prefs blob. Observers and the FPS loop only run while visible.
 
 ## Install
 
@@ -103,6 +106,10 @@ mobileDevtool.hide();     // close the panel
 mobileDevtool.destroy();  // remove the UI and restore console/fetch/XHR patches
 mobileDevtool.getHAR();   // returns captured requests as a HAR 1.2 object
 mobileDevtool.exportHAR();// downloads captured requests as a .har file
+mobileDevtool.getLogs();  // returns console logs as an array of objects
+mobileDevtool.exportLogs('txt' | 'json'); // downloads console logs
+mobileDevtool.shareLogs();// system share sheet (falls back to download)
+mobileDevtool.snapshot(); // screenshot + annotation overlay
 ```
 
 Re-injecting the script after `destroy()` is safe — patches are fully unwound, so nothing double-wraps.
@@ -114,7 +121,8 @@ Re-injecting the script after `destroy()` is safe — patches are fully unwound,
 | Console | Chips filter by level. Tap orange object previews to expand full JSON. Repeated identical lines collapse with a counter. Type JS in the bottom input and hit Run — results (including awaited promises) print inline. |
 | Network | Row shows method, path, status (green = ok, red = failed, `…` = pending) and duration. Tap a row to expand general info, request/response headers and bodies. "⬇ HAR" downloads all captured requests as a `.har` file — open it in Chrome DevTools (Network tab → import) or any HAR viewer. |
 | Elements | Tap `▸` arrows to expand the tree. Tap a node label to see details below. Tap "⊕ Select element" to hide the panel and pick an element by tapping the page; tapping the floating button cancels picking. "↻ Refresh tree" re-reads the DOM. |
-| Storage | Each store lists key/value rows; `✕` deletes a key, "clear all" empties the store. Long values are truncated with a character count. |
+| Storage | Each store lists key/value rows; tap a dotted-underlined value to edit it, `✕` deletes a key, "clear all" empties the store. Long values are truncated with a character count. |
+| Perf | FPS updates live while the tab is open. "Long tasks" counts main-thread blocks >50ms — the usual cause of jank. JS heap needs Chrome. |
 | Info | Read-only device/page facts. Values refresh each time you open the tab. |
 
 ## Demo
@@ -144,9 +152,11 @@ The source is a single IIFE in `mobile-devtool.js` — console/network intercept
 
 ## Limits
 
-- Keeps the last **500 logs** and **200 requests**; request/response bodies truncated at **20 KB**; object serialization capped at depth 6 and 100 items/keys per level (shown as `… N more`).
+- Keeps the last **500 logs** and **200 requests**; request/response bodies truncated at **20 KB**; WebSocket frames capped at 50 per socket / 500 chars each; object serialization capped at depth 6 and 100 items/keys per level (shown as `… N more`).
 - Response bodies are read only for text-like content types (JSON, text, XML, HTML, urlencoded); binary shows as `[content-type]`.
-- Not captured: WebSocket frames, `navigator.sendBeacon`, service-worker internal fetches, requests made before the script loads.
+- Not captured: `navigator.sendBeacon`, service-worker internal fetches, requests made before the script loads.
+- Screenshots are a best-effort SVG render of the DOM — cross-origin images and some complex CSS won't appear.
+- The throttle/block rule applies one URL-substring pattern at a time; XHR blocking fires synthetic `error`/`loadend` events (readyState doesn't reach 4).
 - Requires pointer-events support (iOS 13+, all modern Android). The floating button won't respond on very old browsers.
 - The eval input can be covered by the on-screen keyboard on some iOS versions — scroll the panel if needed.
 

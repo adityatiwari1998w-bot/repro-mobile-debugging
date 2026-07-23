@@ -1,6 +1,6 @@
 {
   "name": "repro-mobile-devtools",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "On-page DevTools for mobile browsers. Console, network, elements, storage and device info panels in a single dependency-free script.",
   "main": "mobile-devtool.js",
   "unpkg": "mobile-devtool.min.js",
