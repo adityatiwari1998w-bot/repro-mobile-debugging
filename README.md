@@ -64,11 +64,29 @@ if (import.meta.env.DEV || location.search.includes('debug=1')) {
 
 ### Sites you don't own — bookmarklet
 
-Save this as a bookmark on your phone, tap it on any page:
+A bookmarklet is a bookmark whose URL is JavaScript instead of a web address. Tapping it runs the code on the current page — injecting the devtool into any site you're viewing, including ones you can't edit.
+
+The code (must stay on one single line, `javascript:` prefix intact):
 
 ```
 javascript:(function(){var s=document.createElement('script');s.src='https://cdn.jsdelivr.net/gh/adityatiwari1998w-bot/repro-mobile-debugging@main/mobile-devtool.min.js';document.body.appendChild(s)})()
 ```
+
+**iPhone (Safari):**
+
+1. Bookmark any page (Share → Add Bookmark), name it "DevTools"
+2. Copy the `javascript:...` line above
+3. Bookmarks → Edit → tap "DevTools" → replace the URL field with the pasted code → Save
+
+**Android (Chrome):**
+
+1. Star any page to bookmark it, name it "DevTools"
+2. Menu → Bookmarks → long-press it → Edit → replace the URL with the pasted code → Save
+3. To run it: type "DevTools" in the address bar and tap the bookmark suggestion (tapping it from the bookmarks list won't execute JS)
+
+**Easier:** edit the bookmark on your desktop browser with sync enabled (Chrome or Safari/iCloud) — it syncs to your phone automatically, no mobile typing.
+
+**Usage:** open the target site, tap the bookmarklet, then reproduce the bug — logs/requests from *before* the tap aren't captured. Won't work on sites whose CSP blocks external scripts, or on browser-internal pages. If pasting strips the `javascript:` prefix, retype it manually.
 
 ### Native app WebViews
 
