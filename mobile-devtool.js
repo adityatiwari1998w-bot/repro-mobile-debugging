@@ -1219,6 +1219,149 @@
     }
   }
 
+  /* ---- action / perf / storage capture (feeds the repro bundle) ---- */
+
+  var MAX_ACTIONS = 300;
+  state.actions = []; // {t, data:{kind,...}} — extension "action" event schema
+
+  function pushAction(kind, data) {
+    data.kind = kind;
+    state.actions.push({ t: now(), data: data });
+    if (state.actions.length > MAX_ACTIONS) state.actions.shift();
+  }
+
+  function describeEl(el) {
+    if (!el || !el.tagName) return String(el);
+    var s = el.tagName.toLowerCase();
+    if (el.id) s += '#' + el.id;
+    else if (el.classList && el.classList.length) s += '.' + el.classList[0];
+    var txt = '';
+    try {
+      if (el.tagName !== 'INPUT' && el.tagName !== 'TEXTAREA') {
+        txt = (el.innerText || el.textContent || el.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 30);
+      }
+    } catch (e) {}
+    if (txt) s += ' "' + txt + '"';
+    return s;
+  }
+
+  function onDocClick(e) {
+    var el = e.target;
+    if (!el || isOurs(el)) return;
+    var data = { target: describeEl(el) };
+    if (/^(CANVAS|SVG|VIDEO|IMG|EMBED|OBJECT)$/i.test(el.tagName)) {
+      try {
+        var r = el.getBoundingClientRect();
+        var x = Math.round(e.clientX - r.left), y = Math.round(e.clientY - r.top);
+        data.pos = {
+          x: x, y: y, w: Math.round(r.width), h: Math.round(r.height),
+          px: r.width ? Math.round(x / r.width * 100) : 0,
+          py: r.height ? Math.round(y / r.height * 100) : 0
+        };
+      } catch (err) {}
+    }
+    pushAction('click', data);
+  }
+
+  function maskValue(el) {
+    try {
+      var type = (el.type || '').toLowerCase();
+      var ac = ((el.getAttribute && el.getAttribute('autocomplete')) || '').toLowerCase();
+      if (type === 'password' || ac === 'current-password' || ac === 'new-password') return '••••••';
+      return String(el.value == null ? '' : el.value).slice(0, 80);
+    } catch (e) { return ''; }
+  }
+
+  function onDocInput(e) {
+    var el = e.target;
+    if (!el || isOurs(el) || el.value === undefined) return;
+    var target = describeEl(el);
+    var last = state.actions[state.actions.length - 1];
+    // coalesce keystrokes into one action per field
+    if (last && last.data.kind === 'input' && last.data.target === target && now() - last.t < 1500) {
+      last.data.value = maskValue(el);
+      last.t = now();
+      return;
+    }
+    pushAction('input', { target: target, value: maskValue(el) });
+  }
+
+  function onDocKey(e) {
+    if (!e.key || isOurs(e.target)) return;
+    if (/^(Shift|Control|Alt|Meta)$/.test(e.key)) return;
+    var mods = [];
+    if (e.metaKey) mods.push('Cmd');
+    if (e.ctrlKey) mods.push('Ctrl');
+    if (e.altKey) mods.push('Alt');
+    if (e.shiftKey && e.key.length > 1) mods.push('Shift');
+    if (!mods.length && e.key.length === 1) return; // plain typing → covered by input events
+    var combo = mods.concat([e.key.length === 1 ? e.key.toUpperCase() : e.key]).join('+');
+    pushAction('key', { combo: combo, target: describeEl(e.target) });
+  }
+
+  var lastUrl = location.href;
+  function recordNav() {
+    if (location.href !== lastUrl) {
+      pushAction('navigate', { from: lastUrl, to: location.href });
+      lastUrl = location.href;
+    }
+  }
+  var origPushState = history.pushState, origReplaceState = history.replaceState;
+  try {
+    history.pushState = function () { var r = origPushState.apply(this, arguments); recordNav(); return r; };
+    history.replaceState = function () { var r = origReplaceState.apply(this, arguments); recordNav(); return r; };
+  } catch (e) {}
+  window.addEventListener('popstate', recordNav);
+  window.addEventListener('hashchange', recordNav);
+  document.addEventListener('click', onDocClick, true);
+  document.addEventListener('input', onDocInput, true);
+  document.addEventListener('keydown', onDocKey, true);
+
+  /* web vitals observers (LCP / CLS), buffered so early entries count */
+  var vitals = { lcp: null, cls: 0, obs: [] };
+  try {
+    var lcpObs = new PerformanceObserver(function (list) {
+      var es = list.getEntries();
+      if (es.length) {
+        var last = es[es.length - 1];
+        vitals.lcp = Math.round(last.renderTime || last.loadTime || last.startTime);
+      }
+    });
+    lcpObs.observe({ type: 'largest-contentful-paint', buffered: true });
+    vitals.obs.push(lcpObs);
+  } catch (e) {}
+  try {
+    var clsObs = new PerformanceObserver(function (list) {
+      list.getEntries().forEach(function (en) { if (!en.hadRecentInput) vitals.cls += en.value; });
+    });
+    clsObs.observe({ type: 'layout-shift', buffered: true });
+    vitals.obs.push(clsObs);
+  } catch (e) {}
+
+  /* storage snapshots (start at load, end at export) — devtool's own keys excluded */
+  function readStoreMap(store) {
+    var o = {}, count = 0;
+    try {
+      for (var i = 0; i < store.length && count < 300; i++) {
+        var k = store.key(i);
+        if (k && k.indexOf('__mdt') === 0) continue;
+        var v = store.getItem(k) || '';
+        o[k] = v.length > 2000 ? v.slice(0, 2000) + '…[truncated]' : v;
+        count++;
+      }
+    } catch (e) {}
+    return o;
+  }
+  function storageSnapshot() {
+    var cookies = ''; try { cookies = document.cookie || ''; } catch (e) {}
+    var loc = {}; try { loc = readStoreMap(localStorage); } catch (e) {}
+    var ses = {}; try { ses = readStoreMap(sessionStorage); } catch (e) {}
+    return { local: loc, session: ses, cookies: cookies };
+  }
+  var storageStart = storageSnapshot();
+
+  pushAction('page', { info: 'mobile-devtool capture started on ' + location.href });
+
   /* ---- repro bundle export ----
      Produces a zip compatible with the repro debug-extension's "Import a capture":
      data.json { session, events } (+ summary.md, network.har). Zip entries use
@@ -1283,6 +1426,52 @@
       if (n.frames) data.ws = { frames: n.frames, dropped: n.dropped || 0 };
       events.push({ sessionId: sid, type: 'network', t: n.start, data: data });
     });
+    var endT = now();
+    /* actions */
+    state.actions.forEach(function (a) {
+      events.push({ sessionId: sid, type: 'action', t: a.t, data: a.data });
+    });
+    events.push({ sessionId: sid, type: 'action', t: endT, data: { kind: 'page', info: 'Repro bundle exported' } });
+    /* storage: start + end phases so the report can diff them */
+    events.push({
+      sessionId: sid, type: 'storage', t: BOOT,
+      data: { frame: location.href, top: true, phase: 'start', local: storageStart.local, session: storageStart.session, cookies: storageStart.cookies }
+    });
+    var endSnap = storageSnapshot();
+    events.push({
+      sessionId: sid, type: 'storage', t: endT,
+      data: { frame: location.href, top: true, phase: 'end', local: endSnap.local, session: endSnap.session, cookies: endSnap.cookies }
+    });
+    /* perf: web vitals + long tasks (extension vital names/units) */
+    function vital(name, value, unit, update) {
+      if (value == null || isNaN(value) || value < 0) return;
+      events.push({
+        sessionId: sid, type: 'perf', t: endT,
+        data: { kind: 'vital', name: name, value: Math.round(value * 1000) / 1000, unit: unit || '', update: !!update }
+      });
+    }
+    var nav2 = null;
+    try { nav2 = performance.getEntriesByType('navigation')[0]; } catch (e) {}
+    if (nav2) {
+      vital('TTFB', nav2.responseStart, 'ms');
+      if (nav2.domContentLoadedEventEnd) vital('DOMContentLoaded', nav2.domContentLoadedEventEnd, 'ms');
+      if (nav2.loadEventEnd) vital('Load', nav2.loadEventEnd, 'ms');
+      if (nav2.transferSize) vital('Transferred', nav2.transferSize / 1024, 'KB');
+    }
+    try {
+      performance.getEntriesByType('paint').forEach(function (p) {
+        vital(p.name === 'first-contentful-paint' ? 'FCP' : 'FP', p.startTime, 'ms');
+      });
+    } catch (e) {}
+    if (vitals.lcp != null) vital('LCP', vitals.lcp, 'ms', true);
+    if (vitals.cls > 0) vital('CLS', vitals.cls, '', true);
+    longTasks.recent.forEach(function (lt) {
+      events.push({
+        sessionId: sid, type: 'perf',
+        t: Math.round((performance.timeOrigin || BOOT) + lt.s),
+        data: { kind: 'longtask', name: 'self', duration: lt.d, start: lt.s, attribution: [] }
+      });
+    });
     events.sort(function (a, b) { return a.t - b.t; });
     return {
       session: {
@@ -1292,9 +1481,9 @@
         url: location.href,
         title: document.title,
         tabId: null,
-        perf: false,
+        perf: true,
         label: 'mobile-devtool capture — ' + location.host,
-        options: { video: false, console: true, network: true, actions: false, perf: false, code: false }
+        options: { video: false, console: true, network: true, actions: true, perf: true, code: false }
       },
       events: events,
       shots: [],
@@ -1714,7 +1903,7 @@
       longTasks.obs = new PerformanceObserver(function (list) {
         list.getEntries().forEach(function (e) {
           longTasks.count++;
-          longTasks.recent.push(Math.round(e.duration));
+          longTasks.recent.push({ d: Math.round(e.duration), s: Math.round(e.startTime) });
           if (longTasks.recent.length > 20) longTasks.recent.shift();
         });
       });
@@ -1803,7 +1992,7 @@
     sect('Long tasks (>50ms)');
     if (longTasks.obs) {
       row('Count since load', String(longTasks.count));
-      row('Recent durations', longTasks.recent.length ? longTasks.recent.join(', ') + ' ms' : 'none');
+      row('Recent durations', longTasks.recent.length ? longTasks.recent.map(function (x) { return x.d; }).join(', ') + ' ms' : 'none');
     } else {
       row('Long tasks', 'not supported');
     }
@@ -1875,6 +2064,13 @@
       if (typeof OrigWS !== 'undefined' && OrigWS) window.WebSocket = OrigWS;
       stopFPS();
       if (longTasks.obs) { try { longTasks.obs.disconnect(); } catch (e) {} }
+      vitals.obs.forEach(function (o) { try { o.disconnect(); } catch (e) {} });
+      document.removeEventListener('click', onDocClick, true);
+      document.removeEventListener('input', onDocInput, true);
+      document.removeEventListener('keydown', onDocKey, true);
+      window.removeEventListener('popstate', recordNav);
+      window.removeEventListener('hashchange', recordNav);
+      try { history.pushState = origPushState; history.replaceState = origReplaceState; } catch (e) {}
       try { sessionStorage.removeItem(PERSIST_KEY); } catch (e) {}
       if (typeof origFetch === 'function') window.fetch = origFetch;
       if (typeof XP !== 'undefined' && XP && origOpen) {
