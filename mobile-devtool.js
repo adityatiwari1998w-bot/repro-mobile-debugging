@@ -1302,7 +1302,7 @@
     };
   }
 
-  function buildBundleSummary(data) {
+  function buildBundleSummary() {
     var errs = state.logs.filter(function (e) { return e.level === 'error'; });
     var failed = state.net.filter(function (n) { return n.status !== null && !n.ok; });
     var lines = [
@@ -1395,7 +1395,7 @@
       var data = buildBundleData();
       var files = [
         { name: 'data.json', text: JSON.stringify(data, null, 2) },
-        { name: 'summary.md', text: buildBundleSummary(data) }
+        { name: 'summary.md', text: buildBundleSummary() }
       ];
       if (state.net.some(function (n) { return n.type !== 'ws'; })) {
         files.push({ name: 'network.har', text: JSON.stringify(buildHAR(), null, 2) });
