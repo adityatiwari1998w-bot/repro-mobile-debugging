@@ -785,8 +785,12 @@
       renderNet();
     }, 200));
     nBar.appendChild(nSearch);
+    var nBundle = el('button', 'btn', '⬇ Bundle');
+    nBundle.style.marginLeft = 'auto';
+    nBundle.title = 'Export repro bundle zip (import into the repro extension via "Import a capture")';
+    nBundle.addEventListener('click', exportBundle);
+    nBar.appendChild(nBundle);
     var nExport = el('button', 'btn', '⬇ HAR');
-    nExport.style.marginLeft = 'auto';
     nExport.title = 'Export requests as HAR file';
     nExport.addEventListener('click', exportHAR);
     nBar.appendChild(nExport);
@@ -1163,7 +1167,9 @@
           bodySize: n.respBody ? n.respBody.length : 0
         },
         cache: {},
-        timings: { send: 0, wait: n.duration || 0, receive: 0 }
+        timings: { send: 0, wait: n.duration || 0, receive: 0 },
+        _resourceType: n.type,
+        pageref: 'page_1'
       };
       if (n.reqBody) {
         entry.request.postData = {
@@ -1181,7 +1187,7 @@
           startedDateTime: new Date().toISOString(),
           id: 'page_1',
           title: location.href,
-          pageTimings: {}
+          pageTimings: { onContentLoad: -1, onLoad: -1 }
         }],
         entries: entries
       }
@@ -1209,6 +1215,198 @@
       return har;
     } catch (e) {
       pushLog('error', ['HAR export failed:', e]);
+      return null;
+    }
+  }
+
+  /* ---- repro bundle export ----
+     Produces a zip compatible with the repro debug-extension's "Import a capture":
+     data.json { session, events } (+ summary.md, network.har). Zip entries use
+     STORE (no compression) with sizes/CRC in local headers — same as repro's own writer. */
+
+  var BOOT = now();
+
+  function headersToObjMap(text) {
+    var o = {};
+    (text || '').split('\n').forEach(function (line) {
+      var i = line.indexOf(':');
+      if (i > 0) o[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+    });
+    return o;
+  }
+
+  function buildBundleData() {
+    var sid = 'sess_' + BOOT + '_' + Math.random().toString(36).slice(2, 8);
+    var events = [];
+    events.push({
+      sessionId: sid, type: 'env', t: BOOT,
+      data: {
+        url: location.href,
+        title: document.title,
+        userAgent: navigator.userAgent,
+        platform: navigator.platform || '',
+        language: navigator.language,
+        viewport: { w: window.innerWidth, h: window.innerHeight },
+        screen: { w: screen.width, h: screen.height },
+        dpr: window.devicePixelRatio || 1,
+        online: navigator.onLine,
+        cookiesEnabled: navigator.cookieEnabled,
+        time: new Date(BOOT).toISOString(),
+        tz: (function () { try { return Intl.DateTimeFormat().resolvedOptions().timeZone; } catch (e) { return ''; } })()
+      }
+    });
+    state.logs.forEach(function (e) {
+      var level = (e.level === 'result' || e.level === 'input') ? 'log' : e.level;
+      var data = {
+        level: level,
+        args: e.parts.map(function (p) { return p.full || p.text; })
+      };
+      if (e.stack) { data.stack = e.stack; data.uncaught = true; }
+      if (e.count > 1) data.args.push('(repeated x' + e.count + ')');
+      events.push({ sessionId: sid, type: 'console', t: e.time, data: data });
+    });
+    state.net.forEach(function (n) {
+      var data = {
+        kind: n.type, // fetch | xhr | ws
+        method: n.method,
+        url: n.url,
+        status: n.status === null ? 0 : n.status,
+        statusText: n.error || '',
+        ok: !!n.ok,
+        duration: n.duration || 0,
+        startTime: n.start,
+        requestHeaders: headersToObjMap(n.reqHeaders),
+        responseHeaders: headersToObjMap(n.respHeaders)
+      };
+      if (n.reqBody) data.requestBody = n.reqBody;
+      if (n.respBody) data.responseBody = n.respBody;
+      if (n.frames) data.ws = { frames: n.frames, dropped: n.dropped || 0 };
+      events.push({ sessionId: sid, type: 'network', t: n.start, data: data });
+    });
+    events.sort(function (a, b) { return a.t - b.t; });
+    return {
+      session: {
+        id: sid,
+        startedAt: BOOT,
+        endedAt: now(),
+        url: location.href,
+        title: document.title,
+        tabId: null,
+        perf: false,
+        label: 'mobile-devtool capture — ' + location.host,
+        options: { video: false, console: true, network: true, actions: false, perf: false, code: false }
+      },
+      events: events,
+      shots: [],
+      clips: []
+    };
+  }
+
+  function buildBundleSummary(data) {
+    var errs = state.logs.filter(function (e) { return e.level === 'error'; });
+    var failed = state.net.filter(function (n) { return n.status !== null && !n.ok; });
+    var lines = [
+      '# Capture summary',
+      '',
+      '- **Page:** ' + location.href,
+      '- **Captured:** ' + new Date(BOOT).toISOString() + ' → ' + new Date().toISOString(),
+      '- **Device:** ' + navigator.userAgent,
+      '- **Logs:** ' + state.logs.length + ' (' + errs.length + ' errors)',
+      '- **Requests:** ' + state.net.length + ' (' + failed.length + ' failed)',
+      ''
+    ];
+    if (errs.length) {
+      lines.push('## Errors');
+      lines.push('');
+      errs.slice(-20).forEach(function (e) {
+        lines.push('- `' + timeStr(e.time) + '` ' + e.parts.map(function (p) { return p.text; }).join(' ').slice(0, 300));
+      });
+      lines.push('');
+    }
+    if (failed.length) {
+      lines.push('## Failed requests');
+      lines.push('');
+      failed.slice(-20).forEach(function (n) {
+        lines.push('- `' + n.method + '` ' + n.url + ' → ' + (n.status || n.error || 'ERR'));
+      });
+      lines.push('');
+    }
+    return lines.join('\n');
+  }
+
+  /* minimal STORE-only zip writer (mirrors repro's own format) */
+  var CRC_TABLE = (function () {
+    var t = new Int32Array(256);
+    for (var nn = 0; nn < 256; nn++) {
+      var c = nn;
+      for (var k = 0; k < 8; k++) c = (c & 1) ? ((c >>> 1) ^ 0xEDB88320) : (c >>> 1);
+      t[nn] = c;
+    }
+    return t;
+  })();
+
+  function crc32(bytes) {
+    var c = -1;
+    for (var i = 0; i < bytes.length; i++) c = (c >>> 8) ^ CRC_TABLE[(c ^ bytes[i]) & 0xFF];
+    return (c ^ -1) >>> 0;
+  }
+
+  function makeZip(files) { // files: [{name, text}]
+    var enc = new TextEncoder();
+    var chunks = [], central = [], offset = 0;
+    files.forEach(function (f) {
+      var nameB = enc.encode(f.name);
+      var data = enc.encode(f.text);
+      var crc = crc32(data);
+      var lh = new DataView(new ArrayBuffer(30));
+      lh.setUint32(0, 0x04034b50, true);  // local header sig
+      lh.setUint16(4, 20, true);          // version needed
+      lh.setUint32(14, crc, true);
+      lh.setUint32(18, data.length, true); // compressed (STORE)
+      lh.setUint32(22, data.length, true); // uncompressed
+      lh.setUint16(26, nameB.length, true);
+      chunks.push(new Uint8Array(lh.buffer), nameB, data);
+      var cd = new DataView(new ArrayBuffer(46));
+      cd.setUint32(0, 0x02014b50, true);  // central dir sig
+      cd.setUint16(4, 20, true);          // version made by
+      cd.setUint16(6, 20, true);          // version needed
+      cd.setUint32(16, crc, true);
+      cd.setUint32(20, data.length, true);
+      cd.setUint32(24, data.length, true);
+      cd.setUint16(28, nameB.length, true);
+      cd.setUint32(42, offset, true);     // local header offset
+      central.push(new Uint8Array(cd.buffer), nameB);
+      offset += 30 + nameB.length + data.length;
+    });
+    var cdSize = 0;
+    central.forEach(function (c) { cdSize += c.length; });
+    var eocd = new DataView(new ArrayBuffer(22));
+    eocd.setUint32(0, 0x06054b50, true);
+    eocd.setUint16(8, files.length, true);
+    eocd.setUint16(10, files.length, true);
+    eocd.setUint32(12, cdSize, true);
+    eocd.setUint32(16, offset, true);
+    var all = chunks.concat(central, [new Uint8Array(eocd.buffer)]);
+    return new Blob(all, { type: 'application/zip' });
+  }
+
+  function exportBundle() {
+    try {
+      var data = buildBundleData();
+      var files = [
+        { name: 'data.json', text: JSON.stringify(data, null, 2) },
+        { name: 'summary.md', text: buildBundleSummary(data) }
+      ];
+      if (state.net.some(function (n) { return n.type !== 'ws'; })) {
+        files.push({ name: 'network.har', text: JSON.stringify(buildHAR(), null, 2) });
+      }
+      var d = new Date();
+      function p2(x) { return String(x).padStart(2, '0'); }
+      var name = 'repro-bundle-' + d.getFullYear() + p2(d.getMonth() + 1) + p2(d.getDate()) + '-' + p2(d.getHours()) + p2(d.getMinutes()) + '.zip';
+      downloadBlob(makeZip(files), name);
+      return data;
+    } catch (e) {
+      pushLog('error', ['Bundle export failed:', e]);
       return null;
     }
   }
@@ -1660,6 +1858,8 @@
     getLogs: logsJSON,      // returns logs as array of objects
     exportLogs: exportLogs, // ('txt'|'json') triggers download
     shareLogs: shareLogs,   // navigator.share (falls back to download)
+    getBundle: buildBundleData,   // returns { session, events, shots, clips }
+    exportBundle: exportBundle,   // downloads repro-bundle-*.zip (repro extension compatible)
     destroy: function () {
       if (ui && ui.host && ui.host.parentNode) ui.host.parentNode.removeChild(ui.host);
       ui = null;
