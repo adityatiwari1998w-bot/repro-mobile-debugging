@@ -172,7 +172,7 @@ The source is a single IIFE in `mobile-devtool.js` — console/network intercept
 - Keeps the last **500 logs** and **200 requests**; request/response bodies stored **in full** (1 MB per-body safety ceiling); WebSocket frames capped at 50 per socket / 500 chars each; object serialization capped at depth 6 and 100 items/keys per level (shown as `… N more`).
 - Response bodies are read only for text-like content types (JSON, text, XML, HTML, urlencoded); binary shows as `[content-type]`.
 - Not captured: `navigator.sendBeacon`, service-worker internal fetches, requests made before the script loads.
-- Screenshots are a best-effort SVG render of the DOM — cross-origin images and some complex CSS won't appear.
+- Screenshots use a fast SVG render where supported; on iOS/Safari (which can't rasterize it) the tool lazy-loads **html2canvas** from jsDelivr on first 📷 tap — needs network access and a CSP that allows cdn.jsdelivr.net. Cross-origin images may still be missing.
 - The throttle/block rule applies one URL-substring pattern at a time; XHR blocking fires synthetic `error`/`loadend` events (readyState doesn't reach 4).
 - Requires pointer-events support (iOS 13+, all modern Android). The floating button won't respond on very old browsers.
 - The eval input can be covered by the on-screen keyboard on some iOS versions — scroll the panel if needed.

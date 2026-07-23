@@ -1004,12 +1004,65 @@
 
   var annotBase = null; // Image holding the clean screenshot (for "Clear drawing")
 
+  /* WebKit (all iOS browsers + desktop Safari) can't rasterize foreignObject SVG
+     onto canvas — for those we lazy-load html2canvas from CDN instead. */
+  var needsH2C = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) || // iPadOS pretends to be a Mac
+    (/AppleWebKit/.test(navigator.userAgent) && !/Chrome|CriOS|Android/.test(navigator.userAgent));
+
+  var H2C_URL = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+  function loadH2C(ok, fail) {
+    if (window.html2canvas) return ok();
+    var s = document.createElement('script');
+    s.src = H2C_URL;
+    s.onload = function () {
+      if (window.html2canvas) ok();
+      else fail(new Error('html2canvas loaded but unavailable'));
+    };
+    s.onerror = function () { fail(new Error('could not load html2canvas from CDN (offline, or CSP blocks cdn.jsdelivr.net)')); };
+    document.head.appendChild(s);
+  }
+
+  function openAnnotator(fromCanvas) {
+    var c = ui.aCanvas;
+    c.width = fromCanvas.width;
+    c.height = fromCanvas.height;
+    c.getContext('2d').drawImage(fromCanvas, 0, 0);
+    annotBase = new Image();
+    annotBase.src = c.toDataURL('image/png');
+    ui.annot.classList.add('on');
+  }
+
+  function snapshotH2C(w, h, dpr) {
+    loadH2C(function () {
+      window.html2canvas(document.body, {
+        width: w,
+        height: h,
+        x: window.scrollX || window.pageXOffset || 0,
+        y: window.scrollY || window.pageYOffset || 0,
+        scale: dpr,
+        useCORS: true,
+        logging: false,
+        ignoreElements: function (n) { return n && n.id === '__mobile_devtool__'; }
+      }).then(function (canvas) {
+        openAnnotator(canvas);
+      }).catch(function (e) {
+        pushLog('error', ['Snapshot failed (html2canvas):', e]);
+        show();
+      });
+    }, function (err) {
+      pushLog('error', ['Snapshot failed:', err]);
+      show();
+    });
+  }
+
   function snapshot() {
     hide();
     setTimeout(function () {
       try {
         var w = window.innerWidth, h = window.innerHeight;
         var dpr = Math.min(window.devicePixelRatio || 1, 2); // cap for memory
+        if (needsH2C) { snapshotH2C(w, h, dpr); return; }
         // collect same-origin CSS
         var css = '';
         try {
@@ -1036,26 +1089,22 @@
         var img = new Image();
         img.onload = function () {
           try {
-            var c = ui.aCanvas;
+            var c = document.createElement('canvas');
             c.width = Math.round(w * dpr);
             c.height = Math.round(h * dpr);
             var ctx2 = c.getContext('2d');
             ctx2.fillStyle = '#ffffff';
             ctx2.fillRect(0, 0, c.width, c.height);
             ctx2.drawImage(img, 0, 0, c.width, c.height);
-            annotBase = new Image();
-            annotBase.src = c.toDataURL('image/png');
-            ui.annot.classList.add('on');
+            openAnnotator(c); // toDataURL inside throws here if canvas got tainted
           } catch (e) {
-            pushLog('error', ['Snapshot render failed (likely CSP or tainted canvas):', e]);
-            show();
+            snapshotH2C(w, h, dpr); // fall back to html2canvas
           }
           URL.revokeObjectURL(url);
         };
         img.onerror = function () {
           URL.revokeObjectURL(url);
-          pushLog('error', ['Snapshot failed — page could not be rendered to SVG (complex/cross-origin content)']);
-          show();
+          snapshotH2C(w, h, dpr); // SVG render failed — fall back to html2canvas
         };
         img.src = url;
       } catch (e) {
